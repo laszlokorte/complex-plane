@@ -333,101 +333,202 @@
 	.dimmed {
 		opacity: 0.3;
 	}
+
+	svg {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+	}
+
+	.controls {
+		position: absolute; 
+		top:1em; 
+		gap: 1em;
+		display: flex;
+		z-index: 10;
+	}
+
+	.buttons {
+		gap: 0.1em; 
+		padding: 0.2em;
+		display: flex; 
+		flex-direction: column;
+		background-color: #0002;
+	}
+
+	.controls.hidden {
+		display: none;
+	}
+
+	h2 {
+		margin: 0;
+	}
+
+	button {
+		cursor: pointer;
+		margin: 0;
+	}
 </style>
 
 <svelte:window on:pointerup={stopCreate} on:pointerup={stopScale} on:pointerup={stopTranslating} on:pointerup={stopMul} on:pointermove={changeMul} on:pointermove={changeCreate} on:pointermove={changeScale} on:pointermove={changeTranslating} />
 <div style="padding-top: 3em">
-<div style="gap: 0.2em; position: absolute; background-color: #0002; padding: 0.5em;top:1em; display: flex; flex-direction: column;">
-	<button type="button" on:click={deleteSelected} disabled={selected==null}>Delete</button>
-	<button type="button" on:click={negateSelected} disabled={selected==null}>Negate</button>
-	<button type="button" on:click={conjugateSelected} disabled={selected==null}>Conjugate</button>
-	<button type="button" on:click={halfSelected} disabled={selected==null}>&sdot;0.5</button>
-	<button type="button" on:click={squareSelected} disabled={selected==null}>Square</button>
-	<button type="button" on:click={rootSelected} disabled={selected==null}>Root</button>
-	<button type="button" on:click={invertSelected} disabled={selected==null}>Invert</button>
-	<button type="button" on:click={normalizeSelected} disabled={selected==null}>Normalize</button>
-	<button type="button" on:click={copySelected} disabled={selected==null}>Copy</button>
-	<button type="button" on:click={projectReSelected} disabled={selected==null}>Project Real</button>
-	<button type="button" on:click={projectImSelected} disabled={selected==null}>Project Imaginary</button>
-	<button type="button" on:click={rotateReSelected} disabled={selected==null}>Rotate Real</button>
-	<button type="button" on:click={rotateImSelected} disabled={selected==null}>Rotate Imaginary</button>
-</div>
-	<div style="pointer-events: none; right: 0; position: absolute;  padding: 0.5em;top:1em; display: flex; flex-direction: column;">
+	<div class="controls" class:hidden={selected==null}>
+		
+		<div class="buttons">
+			<button type="button" on:click={deleteSelected} disabled={selected==null}>Delete</button>
+			<button type="button" on:click={negateSelected} disabled={selected==null}>Negate</button>
+			<button type="button" on:click={conjugateSelected} disabled={selected==null}>Conjugate</button>
+			<button type="button" on:click={halfSelected} disabled={selected==null}>&sdot;0.5</button>
+			<button type="button" on:click={squareSelected} disabled={selected==null}>Square</button>
+			<button type="button" on:click={rootSelected} disabled={selected==null}>Root</button>
+			<button type="button" on:click={invertSelected} disabled={selected==null}>Invert</button>
+			<button type="button" on:click={normalizeSelected} disabled={selected==null}>Normalize</button>
+			<button type="button" on:click={copySelected} disabled={selected==null}>Copy</button>
+			<button type="button" on:click={projectReSelected} disabled={selected==null}>Project Real</button>
+			<button type="button" on:click={projectImSelected} disabled={selected==null}>Project Imaginary</button>
+			<button type="button" on:click={rotateReSelected} disabled={selected==null}>Rotate Real</button>
+			<button type="button" on:click={rotateImSelected} disabled={selected==null}>Rotate Imaginary</button>
 
+		</div>
+		<div>
 	{#if selected !== null}
+		<h2>Selected: <math xmlns = "http://www.w3.org/1998/Math/MathML">
+			<mrow>
+		<mn><msub><mn>z</mn>{selected}</msub></mn></mrow></math></h2>
+
 		{@const mag = Math.sqrt(numbers[selected].re*numbers[selected].re + numbers[selected].im*numbers[selected].im)}
 		{@const phase = Math.atan2(numbers[selected].im, numbers[selected].re)}
-	<p>
+
 		<math xmlns = "http://www.w3.org/1998/Math/MathML">
 			<mrow>
-		<mn><msub><mn>z</mn>{selected}</msub></mn> <mo>=</mo> {decimalFormat.format(numbers[selected].re)} <mo>+</mo> <mi>j</mi><mo>&sdot;</mo>{decimalFormat.format(numbers[selected].im)} <mo>=</mo> {decimalFormat.format(mag)}<mo>&sdot;</mo><msup><mi>e</mi><mrow><mi>{phase/Math.PI<0?'-':'+'}j</mi><mn>{decimalFormat.format(Math.abs(phase/Math.PI))}</mn><mi>&pi;</mi></mrow></msup>
-			<mo>=</mo>
-				
-      <mo>[</mo>
+
       <mtable>
          <mtr>
-            <mtd><mn>{decimalFormat.format(numbers[selected].re)}</mn></mtd>
-            <mtd><mn>{decimalFormat.format(-numbers[selected].im)}</mn></mtd>
+         	<mtd><mn><msub><mn>z</mn>{selected}</msub></mn></mtd>
+         	<mtd><mo>=</mo></mtd>
+         	<mtd><mrow>{#if numbers[selected].re<0}<mo>-</mo>{/if}<mn>{decimalFormat.format(Math.abs(numbers[selected].re))}</mn><mo>{numbers[selected].im<0?'-':'+'}</mo><mn mathvariant='normal'>j</mn><mo>&InvisibleTimes;</mo><mn>{decimalFormat.format(Math.abs(numbers[selected].im))}</mn></mrow></mtd>
+         	<mtd><mtext>(Cartesian)</mtext></mtd>
          </mtr>
-         
          <mtr>
-            <mtd><mn>{decimalFormat.format(numbers[selected].im)}</mn></mtd>
-            <mtd><mn>{decimalFormat.format(numbers[selected].re)}</mn></mtd>
+         	<mtd></mtd>
+         	<mtd><mo>=</mo></mtd>
+         	<mtd><mrow><mn> {decimalFormat.format(mag)}</mn><mo>&sdot;</mo><msup><mn>e</mn><mrow><mo>{phase<0?'-':'+'}</mo><mn mathvariant='normal'>j</mn><mo>&InvisibleTimes;</mo><mn>{decimalFormat.format(Math.abs(phase/Math.PI))}</mn><mo>&InvisibleTimes;</mo><mn>&pi;</mn></mrow></msup></mrow></mtd>
+         	<mtd><mtext>(Polar)</mtext></mtd>
          </mtr>
+         <mtr>
+         	<mtd></mtd>
+         	<mtd><mo>=</mo></mtd>
+         	<mtd>
+         		<mrow>
+         			<mo>[</mo>
+				      <mtable>
+				         <mtr>
+				            <mtd><mn>{decimalFormat.format(numbers[selected].re)}</mn></mtd>
+				            <mtd><mn>{decimalFormat.format(-numbers[selected].im)}</mn></mtd>
+				         </mtr>
+				         
+				         <mtr>
+				            <mtd><mn>{decimalFormat.format(numbers[selected].im)}</mn></mtd>
+				            <mtd><mn>{decimalFormat.format(numbers[selected].re)}</mn></mtd>
+				         </mtr>
+				      </mtable>
+				      <mo>]</mo>
+         		</mrow>
+         	</mtd>
+         	<mtd><mtext>(Matrix)</mtext></mtd>
+         </mtr>
+
       </mtable>
-      <mo>]</mo>
-			</mrow>
 		</math>
 		<br>
 		<math xmlns = "http://www.w3.org/1998/Math/MathML">
-			<mrow>
-				<mn>Re(<msub><mn>z</mn>{selected}</msub>)</mn> <mo>=</mo> <mn>{decimalFormat.format(numbers[selected].re)}</mn>
-			</mrow>
+			<mtable>
+         <mtr>
+         	<mtd>
+				<mn>Re</mn><mo>(</mo><msub><mn>z</mn>{selected}</msub><mo>)</mo>
+         	</mtd>
+         	<mtd>
+				<mo>=</mo>
+         	</mtd>
+         	<mtd>
+				 <mn>{decimalFormat.format(numbers[selected].re)}</mn>
+         	</mtd>
+         </mtr>
+
+
+         <mtr>
+         	<mtd>
+				<mn>Im</mn><mo>(</mo><msub><mn>z</mn>{selected}</msub><mo>)</mo>
+         	</mtd>
+         	<mtd>
+				<mo>=</mo>
+         	</mtd>
+         	<mtd>
+				 <mn>{decimalFormat.format(numbers[selected].im)}</mn>
+         	</mtd>
+         </mtr>
+
+
+         <mtr>
+         	<mtd>
+				<mrow><mo>|</mo><msub><mn>z</mn>{selected}</msub><mo>|</mo></mrow>
+         	</mtd>
+         	<mtd>
+				<mo>=</mo>
+         	</mtd>
+         	<mtd>
+				 <mn>{decimalFormat.format(Math.hypot(numbers[selected].re, numbers[selected].im))}</mn>
+         	</mtd>
+         </mtr>
+
+
+         <mtr>
+         	<mtd>
+				<mo>∠</mo><msub><mn>z</mn>{selected}</msub>
+         	</mtd>
+         	<mtd>
+				<mo>=</mo>
+         	</mtd>
+         	<mtd>
+				 <mn>{decimalFormat.format(Math.atan2(numbers[selected].im, numbers[selected].re)/Math.PI)}</mn><mo>&InvisibleTimes;</mo><mn>&pi;</mn>
+         	</mtd>
+         	<mtd>
+				<mo>=</mo>
+         	</mtd>
+         	<mtd>
+				<mn>{decimalFormat.format(Math.atan2(numbers[selected].im, numbers[selected].re)/Math.PI*180)}</mn><mi>°</mi>
+         	</mtd>
+         </mtr>
+
+      </mtable>
 		</math>
-		<br>
-		<math xmlns = "http://www.w3.org/1998/Math/MathML">
-			<mrow>
-				<mn>Im(<msub><mn>z</mn>{selected}</msub>)</mn> <mo>=</mo> <mn>{decimalFormat.format(numbers[selected].im)}</mn>
-			</mrow>
-		</math>
-		<br>
-		<math xmlns = "http://www.w3.org/1998/Math/MathML">
-			<mrow>
-				<mn>Mag(<msub><mn>z</mn>{selected}</msub>)</mn> <mo>=</mo> <mn>{decimalFormat.format(Math.hypot(numbers[selected].re, numbers[selected].im))}</mn>
-			</mrow>
-		</math>
-		<br>
-		<math xmlns = "http://www.w3.org/1998/Math/MathML">
-			<mrow>
-				<mn>Arg(<msub><mn>z</mn>{selected}</msub>)</mn> <mo>=</mo> <mn>{decimalFormat.format(Math.atan2(numbers[selected].im, numbers[selected].re)/Math.PI)}&pi;</mn>
-			</mrow>
-		</math>
-	</p>
 	{#if translating}
-		Adding
+		<p>Adding
 		<math xmlns = "http://www.w3.org/1998/Math/MathML">
 			<mrow>
 		<mn><msub><mn>z</mn>{selected}</msub></mn> <mo>+</mo><mn>{#if snap !== null}<msub><mn>z</mn>{snap}</msub>{:else}...{/if}</mn>
 			</mrow>
-		</math>
+		</math></p>
 	{/if}
 	{#if rotating}
-		Multiplying
+		<p>Multiplying
 		<math xmlns = "http://www.w3.org/1998/Math/MathML">
 			<mrow>
 		<mn><msub><mn>z</mn>{selected}</msub></mn> <mo>&sdot;</mo><mn>{#if snap !== null}<msub><mn>z</mn>{snap}</msub>{:else}...{/if}</mn>
 			</mrow>
-		</math>
+		</math></p>
 	{/if}
 	{#if scaling}
-		Modifying 
+		<p>Modifying 
 		<math xmlns = "http://www.w3.org/1998/Math/MathML">
 			<mrow>
 		<mn><msub><mn>z</mn>{selected}</msub></mn>
 			</mrow>
-		</math>
+		</math></p>
 	{/if}
 	{/if}
+</div>
 </div>
 
 <svg style="user-select: none;" cursor={creating!==null?"move":"default"} bind:this={svg} viewBox="-500 -500 1000 1000" on:keydown={selectNum} tabindex="0" role="button" on:pointerdown={selectNum}>
@@ -456,17 +557,35 @@
 	</g>
 	
 	{#each numbers as num, ni}
+		{@const mag = Math.sqrt(num.re*num.re + num.im*num.im)}
+		{@const phase = Math.atan2(num.im, num.re)}
 		<line class:dimmed={(rotating||translating) && ni==selected} stroke-linecap="round" x1="0" y1="0" x2={num.re*100} y2={-num.im*100} stroke={num.color} stroke-width="3" />
+		<polygon class:dimmed={(rotating||translating) && ni==selected}  points="-12 10 -12 -10 3 0" transform="rotate({-phase*180/Math.PI}) translate({100*mag}, 0)" fill={num.color} />
 	{/each}	
 
 	
 	{#each numbers as num, ni}
-		<line stroke-linecap="round" on:keydown={selectNum} tabindex="0" role="button" data-num-index={ni} on:pointerdown={selectNum} x1="0" y1="0" x2={num.re*100} y2={-num.im*100} stroke="none" pointer-events="all" stroke-width="10" />
+		{@const mag = Math.sqrt(num.re*num.re + num.im*num.im)}
+		{@const phase = Math.atan2(num.im, num.re)}
+		<g on:keydown={selectNum} tabindex="0" role="button" data-num-index={ni} on:pointerdown={selectNum} pointer-events="all">
+		<line stroke-linecap="round" x1="0" y1="0" x2={num.re*100} y2={-num.im*100} stroke="none"  stroke-width="10" />
+		<polygon points="-12 10 -12 -10 3 0" transform="rotate({-phase*180/Math.PI}) translate({100*mag}, 0)" fill="none" />
+		</g>
 	{/each}
 
 	{#if selected === null && (creating == null || creating == true) && colors.length}
 		<circle cursor="move" on:pointerdown={startCreate} cx="100" cy="0" r="10" fill="black" stroke="black"></circle>
 		<path pointer-events="none" d="M100,0m-6,0h12M100,0m0,-6v12" stroke="white" stroke-width="2"></path>
+
+
+	{#each numbers as num, ni}
+		<foreignObject pointer-events="none" width="30" height="30" x={num.re*100 + Math.sign(num.re)*10 - 15} y={-num.im*100 - 15 - Math.sign(num.im)*10} requiredExtensions="http://www.w3.org/1998/Math/MathML">
+			<math style:font-size="1.2em" xmlns="http://www.w3.org/1998/Math/MathML" display="block">
+				<mrow><msub><mn>z</mn><mn>{ni}</mn></msub></mrow>
+			</math>
+		</foreignObject>	
+	{/each}	
+
 	{/if}
 
 	
@@ -500,16 +619,20 @@
 			{/each}
 		
 		{@const num = numbers[selected]}
-			<line stroke-linecap="round" x1={0} y1={0}  x2={(num.re+translating.re)*100} y2={-(num.im+translating.im)*100} stroke="lightblue" stroke-width="10" />
+		{@const newmag = Math.hypot((num.re+translating.re), (num.im+translating.im))}
+		{@const newphase = Math.atan2((num.im+translating.im), (num.re+translating.re))}
+		<line stroke-linecap="round" x1={0} y1={0}  x2={(num.re+translating.re)*100} y2={-(num.im+translating.im)*100} stroke="lightblue" stroke-width="10" />
+		<polygon points="-12 10 -12 -10 3 0" transform="rotate({-newphase*180/Math.PI}) translate({100*newmag}, 0)" fill="none" stroke="lightblue" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"  />
 
-		<line   stroke-linecap="round" x1={0} y1={0} x2={(num.re+translating.re)*100} y2={-(num.im+translating.im)*100} stroke="{num.color}" stroke-width="3" />
+		<line stroke-linecap="round" stroke-linejoin="round"  x1={0} y1={0} x2={(num.re+translating.re)*100} y2={-(num.im+translating.im)*100} stroke="{num.color}" stroke-width="3" />
+		<polygon points="-12 10 -12 -10 3 0" transform="rotate({-newphase*180/Math.PI}) translate({100*newmag}, 0)" fill={num.color} />
 
 		
-		<line class="hidden" stroke-linecap="round" x1={(translating.re)*100} y1={-(translating.im)*100}  x2={(num.re+translating.re)*100} y2={-(num.im+translating.im)*100} stroke="lightblue" stroke-width="10" />
+		<line class="hidden" stroke-linecap="round" stroke-linejoin="round"  x1={(translating.re)*100} y1={-(translating.im)*100}  x2={(num.re+translating.re)*100} y2={-(num.im+translating.im)*100} stroke="lightblue" stroke-width="10" />
 		<path d="M{translating.re*100},{-translating.im*100}0m-8,-8v16h16v-16h-16" fill="none" stroke="lightblue" stroke-width="10"></path>
 
-		<line stroke-linecap="round" x1={(num.re)*100} y1={-(num.im)*100}  x2={(num.re+translating.re)*100} y2={-(num.im+translating.im)*100} stroke-dasharray="5 5" stroke="gray" stroke-width="2" />
-		<line stroke-linecap="round" x1={0} y1={0}  x2={(translating.re)*100} y2={-(translating.im)*100} stroke-dasharray="5 5" stroke="gray" stroke-width="2" />
+		<line stroke-linecap="round" stroke-linejoin="round"  x1={(num.re)*100} y1={-(num.im)*100}  x2={(num.re+translating.re)*100} y2={-(num.im+translating.im)*100} stroke-dasharray="5 5" stroke="gray" stroke-width="2" />
+		<line stroke-linecap="round" stroke-linejoin="round"  x1={0} y1={0}  x2={(translating.re)*100} y2={-(translating.im)*100} stroke-dasharray="5 5" stroke="gray" stroke-width="2" />
 		<path on:pointerdown={startTranslating} cursor="move" d="M{translating.re*100},{-translating.im*100}m-8,-8v16h16v-16h-16" stroke="{num.color}" fill="white" stroke-width="3"></path>
 	
 	{/if}
@@ -526,13 +649,18 @@
 		{@const mag = Math.sqrt(rotating.re*rotating.re + rotating.im*rotating.im)}		
 		{@const phase = Math.atan2(rotating.im, rotating.re)}
 
-		<path d="M0,0L{rotating.re*100} {-rotating.im*100}M100,0A 100 100 0 {rotating.im<0?1:0} 0 {rotating.re/mag*100} {-rotating.im/mag*100}"  fill="none" stroke-dasharray="5 5" stroke="gray" stroke-width="3" fill-opacity="0.2"></path>
-		<path d="M0,0L {num.re*100/nummag*mag} {-num.im*100/nummag*mag}A {100*mag} {100*mag} 0 {rotating.im<0?1:0} 0 {Math.cos(numphase+phase)*100*mag} {-Math.sin(numphase+phase)*100*mag}"  fill="none" stroke-dasharray="5 5" stroke="gray" stroke-width="3" fill-opacity="0.2"></path>
+		<path d="M0,0L{rotating.re*100} {-rotating.im*100}M100,0A 100 100 0 0 {rotating.im<0?1:0} {rotating.re/mag*100} {-rotating.im/mag*100}"  fill="none" stroke-dasharray="5 5" stroke="gray" stroke-width="3" fill-opacity="0.2"></path>
+		<path d="M0,0L {num.re*100/nummag*mag} {-num.im*100/nummag*mag}A {100*mag} {100*mag} 0 0 {rotating.im<0?1:0} {Math.cos(numphase+phase)*100*mag} {-Math.sin(numphase+phase)*100*mag}"  fill="none" stroke-dasharray="5 5" stroke="gray" stroke-width="3" fill-opacity="0.2"></path>
+		
 
 		<path d="M0,0L100,0L{(num.re)*100},{-(num.im)*100}" fill="{num.color}" fill-opacity="0.05"></path>
 		<path d="M0,0L{Math.cos(phase)*(mag)*100},{-Math.sin(phase)*(mag)*100}L{Math.cos(numphase+phase)*(nummag*mag)*100},{-Math.sin(numphase+phase)*(nummag*mag)*100}" fill="{num.color}" fill-opacity="0.05"></path>
-		<path d="M0,0L{Math.cos(numphase+phase)*(nummag*mag)*100},{-Math.sin(numphase+phase)*(nummag*mag)*100}" stroke="lightblue" stroke-width="8" stroke-linecap="round"></path>
+		<path d="M0,0L{Math.cos(numphase+phase)*(nummag*mag)*100},{-Math.sin(numphase+phase)*(nummag*mag)*100}" stroke="lightblue" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" ></path>
+		<polygon points="-12 10 -12 -10 3 0" transform="rotate({-(numphase+phase)*180/Math.PI}) translate({100*nummag*mag}, 0)" fill="none" stroke="lightblue" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"  />
+
+
 		<path d="M0,0L{Math.cos(numphase+phase)*(nummag*mag)*100},{-Math.sin(numphase+phase)*(nummag*mag)*100}" stroke="{num.color}" stroke-width="3"></path>
+		<polygon points="-12 10 -12 -10 3 0" transform="rotate({-(numphase+phase)*180/Math.PI}) translate({100*nummag*mag}, 0)" fill={num.color} />
 
 		<path stroke-linejoin="round" pointer-events="none" d="M{rotating.re*100},{-rotating.im*100}m-15,10h24a 16 16 0 0 0 -10 -18z" stroke="{num.color}" fill="white" stroke-width="3"></path>
 	{/if}
