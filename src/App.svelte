@@ -223,7 +223,7 @@
 
 		if(snap!=null) {
 			if(!inplaceEdit) {
-				ed(evt)
+				copySelected()
 			}
 			numbers[selected].re += numbers[snap].re
 			numbers[selected].im += numbers[snap].im
