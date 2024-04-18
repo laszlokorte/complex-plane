@@ -186,6 +186,6 @@
 <svelte:window on:mousemove={onMouseMove} on:mouseup={onMouseUp} />
 
 
-<svg bind:this={svg} on:wheel role="button" tabindex="0" on:keydown|preventDefault on:mousedown={onMouseDown} width={element.width} height={element.height} viewBox={viewBoxString(viewBox)} preserveAspectRatio={aspectRatioString(viewBox)}>
+<svg  xmlns:math="http://www.w3.org/1998/Math/MathML" xmlns:xhtml="http://www.w3.org/1999/xhtml" bind:this={svg} on:wheel role="button" tabindex="0" on:keydown|preventDefault on:mousedown={onMouseDown} width={element.width} height={element.height} viewBox={viewBoxString(viewBox)} preserveAspectRatio={aspectRatioString(viewBox)}>
 	<slot {maxVisible} {minVisible}></slot>	
 </svg>

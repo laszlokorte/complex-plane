@@ -2,6 +2,8 @@
 	import SVGCanvas from './SVGCanvas.svelte'
 
 	const decimalFormat = new Intl.NumberFormat("en", {minimumFractionDigits:2, maximumFractionDigits:2});
+	const axisFormat = new Intl.NumberFormat("en-US", {useGrouping:false, minimumSignificantDigits : 2, maximumSignificantDigits : 2,signDisplay:"auto", notation: "standard",trailingZeroDisplay:"stripIfInteger"});
+	const axisFormatExp = new Intl.NumberFormat("en-US", {useGrouping:false, minimumSignificantDigits : 2, maximumSignificantDigits : 2,signDisplay:"auto", notation: "scientific"});
 	let svg = null
 
 	const draftColor = "black"
@@ -367,10 +369,16 @@
 		}
 
 
-		const newRe = numbers[selected].re*numbers[selected].re - numbers[selected].im*numbers[selected].im
-		const newIm = 2*numbers[selected].re*numbers[selected].im
-		numbers[selected].re = newRe
-		numbers[selected].im = newIm
+		const mag = Math.hypot(numbers[selected].re, numbers[selected].im)
+		let phase = Math.atan2(numbers[selected].im, numbers[selected].re)
+		if(phase < 0) {
+			phase +=Math.PI*2
+		}
+		const newMag = mag*mag
+		const newPhase = phase*2
+
+		numbers[selected].re = Math.cos(newPhase) * newMag
+		numbers[selected].im = Math.sin(newPhase) * newMag
 	}
 
 	function rootSelected(evt) {
@@ -443,6 +451,29 @@
 			selected = numbers.length - 1
 		}
 	}
+
+
+
+
+	function axisInterval(range) {
+		var x = Math.pow(10.0, Math.floor(Math.log10(range)));
+	    if (range / x >= 5)
+	        return x;
+	    else if (range / (x / 2.0) >= 5)
+	        return x / 2.0;
+	    else
+	        return x / 5.0;
+	}
+	function segments(resolution, min, max) {
+		return Array(Math.round(Math.abs(resolution))).fill(null).map((_,i,all) => min + (i/all.length)*(max-min))
+	}
+	function formatAxisNumber(n) {
+		if(Math.abs(Math.log(Math.abs(n))) > 5) {
+			return axisFormatExp.format(n).replace('E','×10^')
+		} else {
+			return axisFormat.format(n)
+		}
+	}
 </script>
 
 <style>
@@ -466,14 +497,25 @@
 		z-index: 1000;
 		max-width: 17em;
 		width: 100%;
+		max-height: 90%;
+		overflow: auto;
+		align-items: stretch;
+	}
+
+	button {
+		background-color: #333;
+		color: #fff;
+		padding: 0.3em;
+		flex-grow: 1;
+		display: block;
+		margin: 0;
 	}
 
 	hr {
 		width: 100%;
 		box-sizing: border-box;
 		border: 0;
-		height: 1px;
-		background-color: #333;
+		border-bottom: 1px solid #333;
 	}
 
 	.buttons {
@@ -481,9 +523,9 @@
 		padding: 0.2em;
 		display: flex; 
 		flex-wrap: wrap;
-		max-width: 15em;
 		flex-direction: row;
 		justify-content: stretch;
+		flex-grow: 1;
 	}
 
 	.buttons > button {
@@ -509,6 +551,22 @@
 		inset: 0;
 		display: grid;
 		grid-template-columns: 1fr;
+	}
+
+	.todo::before {
+		content: "✘ ";
+	}
+
+	.todo.valid::before {
+		content: "✔ ";
+	}
+
+	.todo {
+		color: darkred;
+	}
+
+	.valid {
+		color: green;
 	}
 </style>
 
@@ -640,8 +698,10 @@
 		<hr>
 
 
-			<button type="button" on:click={deleteSelected} disabled={selected==null}>Delete</button>
+			<div class="buttons">
+				<button type="button" on:click={deleteSelected} disabled={selected==null}>Delete</button>
 			<button type="button" on:click={copySelected} disabled={selected==null || colors.length == 0}>Duplicate</button>
+			</div>
 
 
 		<hr>
@@ -672,6 +732,9 @@
 		</div>
 		<hr>
 	{#if translating}
+		<p style="font-size: small;" class="todo" class:valid={snap !== null}>
+			Drag <svg style="vertical-align: middle; width: 1em; height: 1em;" viewBox="-10 -10 20 24"><rect fill="white" stroke-width="3" stroke="black" x="-8" y="-8" width="16" height="16"></rect></svg> onto <svg style="vertical-align: middle; width: 1em; height: 1em;" viewBox="-10 -10 20 24"><rect fill="white" stroke-width="3" stroke="black" x="-8" y="-8" width="16" height="16"></rect></svg> to select second operand.
+		</p>
 		<p>Adding
 		<math xmlns = "http://www.w3.org/1998/Math/MathML">
 			<mrow>
@@ -679,6 +742,10 @@
 			</mrow>
 		</math></p>
 	{:else if rotating}
+		<p style="font-size: small;" class="todo" class:valid={snap !== null}>
+			Drag <svg style="vertical-align: middle; width: 1em; height: 1em;" viewBox="-10 -10 20 24"><path fill="white" stroke-width="3" stroke="black" d="M-10,8H6A  8 8 0 0 0 -4 -6z"></path></svg> onto <svg style="vertical-align: middle; width: 1em; height: 1em;" viewBox="-10 -10 20 24"><path fill="white" stroke-width="3" stroke="black" d="M-10,8H6A  8 8 0 0 0 -4 -6z"></path></svg> to select second operand.
+		</p>
+
 		<p>Multiplying
 		<math xmlns = "http://www.w3.org/1998/Math/MathML">
 			<mrow>
@@ -694,17 +761,58 @@
 		</math></p>
 	{:else}
 	<div style="font-size: small;">
-		<p>Drag the <em>Square handle</em> to combine two Complex numbers via addition.</p>
-		<p>Drag the <em>Wedge handle</em> to combine two Complex numbers via multiplication.</p>
-		<p>Drag the <em>Circle handle</em> to scale and rotate the number.</p>
+		<p>Drag the <em>Square handle</em>(<svg style="vertical-align: middle; width: 1em; height: 1em;" viewBox="-10 -10 20 24"><rect fill="white" stroke-width="3" stroke="black" x="-8" y="-8" width="16" height="16"></rect></svg>) to combine two Complex numbers via <em>addition</em>.</p>
+		<p>Drag the <em>Wedge handle</em>(<svg style="vertical-align: middle; width: 1em; height: 1em;" viewBox="-10 -10 20 24"><path fill="white" stroke-width="3" stroke="black" d="M-10,8H6A  8 8 0 0 0 -4 -6z"></path></svg>) to combine two Complex numbers via <em>multiplication</em>.</p>
+		<p>Drag the <em>Circle handle</em>(<svg style="vertical-align: middle; width: 1em; height: 1em;" viewBox="-10 -10 20 24"><circle fill="white" stroke-width="3" stroke="black" r="8"></circle></svg>) to <em>scale and rotate</em> the Complex number.</p>
+
+		<p style="text-align: center;">
+			<a href="//tools.laszlokorte.de">More educational tools</a>
+		</p>
 	</div>
 	{/if}
 	{/if}
 </div>
-
 <SVGCanvas let:minVisible let:maxVisible on:lkdragstart={onDragStart}
 on:lkdragend={onDragEnd}
 on:lkdragmove={onDragMove} on:wheel={onWheel}>
+
+
+	{@const arrowsize = Math.max(Math.abs(maxVisible.y - minVisible.y), Math.abs(maxVisible.x - minVisible.x)) / 220}
+	{@const maxSize = Math.max(maxVisible.x, maxVisible.y)}
+	{@const maxAxis = (maxSize / unitScale)}
+	{@const tickWidth = axisInterval(maxAxis)}
+	{@const xTickCount = Math.floor((maxVisible.x / unitScale) / tickWidth)}
+	{@const yTickCount = Math.floor((maxVisible.y / unitScale) / tickWidth)}
+	{@const xTickLength = xTickCount * tickWidth * unitScale}
+	{@const yTickLength = yTickCount * tickWidth * unitScale}
+
+	<g>
+		<path vector-effect="non-scaling-stroke" d={segments(xTickCount, 0, xTickLength).slice(1).map((x) => `M${x} ${-arrowsize} V${arrowsize} `).join("")} stroke="black"/>
+		<path vector-effect="non-scaling-stroke" d={segments(xTickCount, 0, -xTickLength).slice(1).map((x) => `M${x} ${-arrowsize} V${arrowsize} `).join("")} stroke="black"/>
+		<path vector-effect="non-scaling-stroke" d={segments(yTickCount, 0, yTickLength).slice(1).map((x) => `M${-arrowsize} ${x} H${arrowsize} `).join("")} stroke="black"/>
+		<path vector-effect="non-scaling-stroke" d={segments(yTickCount, 0, -yTickLength).slice(1).map((x) => `M${-arrowsize} ${x} H${arrowsize} `).join("")} stroke="black"/>
+		{#each segments(xTickCount, 0, xTickLength).slice(1) as s, si}
+			{#if !si || si%2 == 1}
+			<text x="{s}" y="{arrowsize*4}" font-size={arrowsize*2} text-anchor="middle">{formatAxisNumber(s/unitScale)}</text>
+			{/if}
+		{/each}
+		{#each segments(xTickCount, 0, -xTickLength).slice(1) as s, si}
+			{#if !si || si%2 == 1}
+			<text x="{s}" y="{arrowsize*4}" font-size={arrowsize*2} text-anchor="middle">{formatAxisNumber(s/unitScale)}</text>
+			{/if}
+		{/each}
+		{#each segments(yTickCount, 0, -yTickLength).slice(1) as s, si}
+			{#if !si || si%2 == 1}
+			<text y="{s}" x="{-arrowsize*3}" font-size={arrowsize*2} text-anchor="end" dominant-baseline="middle">{formatAxisNumber(-s/unitScale)}j</text>
+			{/if}
+		{/each}
+		{#each segments(yTickCount, 0, yTickLength).slice(1) as s, si}
+			{#if !si || si%2 == 1}
+			<text y="{s}" x="{-arrowsize*3}" font-size={arrowsize*2} text-anchor="end" dominant-baseline="middle">{formatAxisNumber(-s/unitScale)}j</text>
+			{/if}
+		{/each}
+	</g>
+
 	<path d="M{minVisible.x+50},0H{maxVisible.x-50}M0,{minVisible.y+50}V{maxVisible.y-50}" stroke="black"/>
 	<path fill="black" d="M0,{minVisible.y+50}l-5,10h10z"></path>
 	<path fill="black" d="M{maxVisible.x-50},0l-10,-5v10z"></path>
@@ -722,10 +830,10 @@ on:lkdragmove={onDragMove} on:wheel={onWheel}>
 			<path  class:hidden={translating||rotating} d="M{unitScale},0A {unitScale} {unitScale} 0 0 {num.im<0?1:0} {num.re/mag*unitScale} {-num.im/mag*unitScale}" fill="none" stroke-opacity="0.4" fill-opacity="0.3" stroke="{num.color}" stroke-width="2" stroke-dasharray="5 5"></path>
 			<path  class:hidden={translating||rotating} d="M0,0H{unitScale}A {unitScale} {unitScale} 0 0 {num.im<0?1:0} {num.re/mag*unitScale} {-num.im/mag*unitScale}" fill="{num.color}" fill-opacity="0.2"></path>
 			
-			<text  class:hidden={translating||rotating} x="{num.re>0?-10:10}" y="{-num.im*unitScale+5}" text-anchor="{num.re>0?"end":"start"}">{decimalFormat.format(num.im)}</text>
-			<text  class:hidden={translating||rotating} y="{num.im>0?30:-20}" x="{num.re*unitScale}" text-anchor="middle">{decimalFormat.format(num.re)}</text>
-			<text  class:hidden={translating||rotating} y="{-num.im*unitScale/2}" x="{num.re*unitScale/2+(num.im>0!==num.re>0?10:-10)}" text-anchor="{num.im>0!==num.re>0?"start":"end"}">{decimalFormat.format(mag)}</text>
-			<text  class:hidden={translating||rotating} y="{-Math.sin(phase/2)*unitScale*0.5+5}" x="{Math.cos(phase/2)*unitScale*0.5}" text-anchor="middle">{decimalFormat.format(phase/Math.PI)}&pi;</text>
+			<text font-size={arrowsize*2} class:hidden={translating||rotating} x="{num.re>0?-10:10}" y="{-num.im*unitScale+5}" text-anchor="{num.re>0?"end":"start"}">{decimalFormat.format(num.im)}</text>
+			<text font-size={arrowsize*2} class:hidden={translating||rotating} y="{num.im>0?30:-20}" x="{num.re*unitScale}" text-anchor="middle">{decimalFormat.format(num.re)}</text>
+			<text font-size={arrowsize*2} class:hidden={translating||rotating} y="{-num.im*unitScale/2}" x="{num.re*unitScale/2+(num.im>0!==num.re>0?10:-10)}" text-anchor="{num.im>0!==num.re>0?"start":"end"}">{decimalFormat.format(mag)}</text>
+			<text font-size={arrowsize*2} class:hidden={translating||rotating} y="{-Math.sin(phase/2)*unitScale*0.65+5}" x="{Math.cos(phase/2)*unitScale*0.65}" text-anchor="middle">{decimalFormat.format(phase/Math.PI)}&pi;</text>
 		{/if}
 	</g>
 	
@@ -754,10 +862,10 @@ on:lkdragmove={onDragMove} on:wheel={onWheel}>
 
 
 		{#each numbers as num, ni}
-			<foreignObject width="30" height="30" x={num.re*unitScale + Math.sign(num.re)*10 - 15} y={-num.im*unitScale - 15 - Math.sign(num.im)*10} requiredExtensions="http://www.w3.org/1998/Math/MathML">
-				<math pointer-events="all"  data-num-index={ni} style:font-size="1.2em" xmlns="http://www.w3.org/1998/Math/MathML" display="block">
-					<mrow><msub><mn>z</mn><mn>{ni}</mn></msub></mrow>
-				</math>
+			<foreignObject pointer-events="none" xmlns="http://www.w3.org/2000/svg"  xmlns:math="http://www.w3.org/1998/Math/MathML" width="30" height="30" x={num.re*unitScale + Math.sign(num.re)*10 - 15} y={-num.im*unitScale - 15 - Math.sign(num.im)*10}>
+				<math:math xmlns="http://www.w3.org/1998/Math/MathML" pointer-events="all"  data-num-index={ni} style:font-size="1.2em">
+					<math:mrow><math:msub><math:mn>z</math:mn><math:mn>{ni}</math:mn></math:msub></math:mrow>
+				</math:math>
 			</foreignObject>	
 		{/each}	
 
@@ -835,8 +943,8 @@ on:lkdragmove={onDragMove} on:wheel={onWheel}>
 		<path d="M {num.re*unitScale/nummag*mag} {-num.im*unitScale/nummag*mag}A {unitScale*mag} {unitScale*mag} 0 0 {rotating.im<0?1:0} {Math.cos(numphase+phase)*unitScale*mag} {-Math.sin(numphase+phase)*unitScale*mag}"  fill="none" stroke-dasharray="5 5" stroke="gray" stroke-width="3" fill-opacity="0.2"></path>
 		
 
-		<path d="M0,0L{unitScale},0L{(num.re)*unitScale},{-(num.im)*unitScale}" fill="{num.color}" fill-opacity="0.05"></path>
-		<path d="M0,0L{Math.cos(phase)*(mag)*unitScale},{-Math.sin(phase)*(mag)*unitScale}L{Math.cos(numphase+phase)*(nummag*mag)*unitScale},{-Math.sin(numphase+phase)*(nummag*mag)*unitScale}" fill="{num.color}" fill-opacity="0.05"></path>
+		<path d="M0,0L{unitScale},0L{(num.re)*unitScale},{-(num.im)*unitScale}" fill="{num.color}" fill-opacity="0.05" stroke={num.color} stroke-opacity="0.4"></path>
+		<path d="M0,0L{Math.cos(phase)*(mag)*unitScale},{-Math.sin(phase)*(mag)*unitScale}L{Math.cos(numphase+phase)*(nummag*mag)*unitScale},{-Math.sin(numphase+phase)*(nummag*mag)*unitScale}" fill="{num.color}" fill-opacity="0.05" stroke={num.color} stroke-opacity="0.4"></path>
 		<path d="M0,0L{Math.cos(numphase+phase)*(nummag*mag)*unitScale},{-Math.sin(numphase+phase)*(nummag*mag)*unitScale}" stroke="lightblue" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" ></path>
 		<polygon points="-12 10 -12 -10 3 0" transform="rotate({-(numphase+phase)*180/Math.PI}) translate({unitScale*nummag*mag}, 0)" fill="none" stroke="lightblue" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"  />
 
@@ -849,15 +957,8 @@ on:lkdragmove={onDragMove} on:wheel={onWheel}>
 
 	<g>
 		
-	<text x="{maxVisible.x- 60}" y="-10" text-anchor="end">Re</text>
-	<text x="10" y="{-maxVisible.y + 60}" text-anchor="start">Im</text>
-
-	{#if unitScale > 30}
-	<text x="{unitScale}" y="30" text-anchor="middle">1</text>
-	<text x="-10" y="{-unitScale+10}" text-anchor="end">1j</text>
-	<text x="{-unitScale}" y="30" text-anchor="middle">-1</text>
-	<text x="-10" y="{unitScale+10}" text-anchor="end">-1j</text>
-	{/if}
+	<text font-size={arrowsize*2}  x="{maxVisible.x- 60}" y="-10" text-anchor="end">Re</text>
+	<text  font-size={arrowsize*2} x="10" y="{-maxVisible.y + 60}" text-anchor="start">Im</text>
 	</g>
 </SVGCanvas>
 </div>
