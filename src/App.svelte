@@ -1,17 +1,68 @@
 <script>
+	import SVGCanvas from './SVGCanvas.svelte'
+
 	const decimalFormat = new Intl.NumberFormat("en", {minimumFractionDigits:2, maximumFractionDigits:2});
 	let svg = null
-	$: svgPoint = svg ? svg.createSVGPoint() : null;
 
-	let colors = ["red","green", "blue", "orange", "magenta", "cyan", "purple"].reverse()
+	const draftColor = "black"
 
-	$: svgCoords = (evt) => {
-	    svgPoint.x = evt.clientX;
-	    svgPoint.y = evt.clientY;
+	const minZoom  = -4
+	const maxZoom = 8
 
-			const res = svgPoint.matrixTransform(svg.getScreenCTM().inverse())
-		
-			return {x: res.x/100, y: -res.y/100}
+	let zoomFactor = 1
+	$: unitScale = 100 * Math.pow(2, zoomFactor)/2
+
+
+	function clamp(v, min, max) {
+		return Math.max(min, Math.min(max, v))
+	}
+
+	function onWheel(evt) {
+		evt.preventDefault()
+		zoomFactor = clamp(zoomFactor + (-(evt.deltaY)/120/3), minZoom, maxZoom)
+	}
+
+	let inplaceEdit = true
+
+	let colors = [
+		'#e6194b', '#3cb44b', '#4363d8', '#f58231', '#911eb4', '#46f0f0', '#f032e6', '#bcf60c', '#fabebe', '#008080', '#e6beff', '#9a6324', '#fffac8', '#800000', '#aaffc3', '#808000', '#ffd8b1', '#000075', '#808080', '#ffe119', 
+	].reverse()
+
+	$: if(colors.length == 0) {
+		inplaceEdit = true
+	}
+
+	function onDragStart({detail: local}) {
+		if(local.target.hasAttribute('data-action')) {
+			const a = local.target.getAttribute('data-action')
+			if (a=='scale') {
+				startScale(local)
+			} else if(a=='rotate') {
+				startMul(local)
+			} else if(a=='translate') {
+				startTranslating(local)
+			} else if(a=='create') {
+				startCreate(local)
+			}
+		} else if(local.target.hasAttribute('data-num-index')) {
+			selected = 1*local.target.getAttribute('data-num-index')
+		} else {
+			selected = null
+		}
+	}
+	
+	function onDragEnd({detail: local}) {
+		stopCreate(local)
+		stopMul(local)
+		stopScale(local)
+		stopTranslating(local)
+	}
+	
+	function onDragMove({detail: local}) {
+		changeMul(local)
+		changeCreate(local)
+		changeTranslating(local)
+		changeScale(local)
 	}
 	
 	let numbers = [
@@ -22,6 +73,9 @@
 			return
 		}
 		let newColor = colors.pop()
+
+		colors = colors
+
 		if(newColor) {
 			numbers = [...numbers, {type: "lit", re: re, im: im, color: newColor}]
 
@@ -52,25 +106,23 @@
 		}
 	}
 
-	function startScale(evt) {
-		evt.stopPropagation();
+	function startScale(local) {
 		scaling = true
 	}
 	
-	function changeScale(evt) {
+	function changeScale(local) {
 		if(scaling==null) {
 			return
 		}
-		const p = svgCoords(evt);
-		numbers[selected] = {...numbers[selected], re: p.x, im: p.y}
+
+		numbers[selected] = {...numbers[selected], re: local.x/unitScale, im: -local.y/unitScale}
 	}
 	
-	function changeTranslating(evt) {
+	function changeTranslating(local) {
 		if(translating==null) {
 			return
 		}
-		const p = svgCoords(evt);
-		translating = {re: p.x, im: p.y}
+		translating = {re: local.x/unitScale, im: -local.y/unitScale}
 
 		trySnap(translating)
 
@@ -86,7 +138,7 @@
 		for(let n of numbers) {
 			const d = Math.pow(p.re - n.re, 2) + Math.pow(p.im - n.im, 2)
 
-			if(d<0.02) {
+			if(d<200/unitScale/unitScale) {
 				snap = i
 				break
 			}
@@ -94,24 +146,21 @@
 		}
 	}
 	
-	function startTranslating(evt) {
-		evt.stopPropagation();
-		const p = svgCoords(evt);
-		translating = {re: p.x, im: p.y}
+	function startTranslating(local) {
+		translating = {re: local.x/unitScale, im: -local.y/unitScale}
 	}
 	
-	function startMul(evt) {
-		evt.stopPropagation();
-
+	function startMul(local) {
 		rotating = true
+
+		changeMul(local)
 	}
 	
-	function changeMul(evt) {
+	function changeMul(local) {
 		if(rotating==null) {
 			return
 		}
-		const p = svgCoords(evt);
-		rotating = {re: p.x, im: p.y}
+		rotating = {re: local.x/unitScale, im: -local.y/unitScale}
 		trySnap(rotating)
 		if(snap !== null) {
 			rotating.re = numbers[snap].re
@@ -119,14 +168,18 @@
 		}
 	}
 	
-	function stopMul(evt) {
+	function stopMul(local) {
 		if(rotating === null) {
 			return
 		}
 		
-		evt.stopPropagation();
 
 		if(snap !== null) {
+
+			if(!inplaceEdit) {
+				copySelected()
+			}
+
 			const newRe = numbers[selected].re * numbers[snap].re - numbers[selected].im * numbers[snap].im
 			const newIm = numbers[selected].im * numbers[snap].re + numbers[selected].re * numbers[snap].im
 			numbers[selected].re = newRe
@@ -137,21 +190,19 @@
 		snap = null
 	}
 
-	function startCreate(evt) {
-		evt.stopPropagation();
+	function startCreate(local) {
 		creating = true
-		changeCreate(evt)
+		changeCreate(local)
 	}
 
-	function changeCreate(evt) {
+	function changeCreate(local) {
 		if(creating==null) {
 			return
 		}
-		const p = svgCoords(evt);
-		creating = {re: p.x, im: p.y}
+		creating = {re: local.x/unitScale, im: -local.y/unitScale}
 	}
 	
-	function stopCreate(evt) {
+	function stopCreate(local) {
 		if(creating !== null && creating !== true) {
 			if(addNumber(creating.re, creating.im)) {
 				selected = numbers.length - 1
@@ -161,16 +212,19 @@
 	}
 
 	
-	function stopScale(evt) {
+	function stopScale(local) {
 		scaling = null
 	}
 	
-	function stopTranslating(evt) {
+	function stopTranslating(local) {
 		if(translating == null) {
 			return
 		}
 
 		if(snap!=null) {
+			if(!inplaceEdit) {
+				ed(evt)
+			}
 			numbers[selected].re += numbers[snap].re
 			numbers[selected].im += numbers[snap].im
 		}
@@ -187,11 +241,17 @@
 		colors.push(numbers[selected].color)
 		numbers = numbers.filter((e,i)=>i!==selected)
 		selected = numbers.length ? numbers.length - 1 : null;
+
+		colors = colors
 	}
 
 	function negateSelected(evt) {
 		if(evt.currentTarget.disabled) {
 			return
+		}
+
+		if(!inplaceEdit) {
+			copySelected()
 		}
 
 		numbers[selected].re *= -1
@@ -203,6 +263,11 @@
 			return
 		}
 
+		if(!inplaceEdit) {
+			copySelected()
+		}
+
+
 		numbers[selected].im *= -1
 	}
 
@@ -210,6 +275,11 @@
 		if(evt.currentTarget.disabled) {
 			return
 		}
+
+		if(!inplaceEdit) {
+			copySelected()
+		}
+
 
 		numbers[selected].re *= 0.5
 		numbers[selected].im *= 0.5
@@ -222,6 +292,11 @@
 			return
 		}
 
+		if(!inplaceEdit) {
+			copySelected()
+		}
+
+
 		numbers[selected].im *= 0
 	}
 	
@@ -229,6 +304,11 @@
 		if(evt.currentTarget.disabled) {
 			return
 		}
+
+		if(!inplaceEdit) {
+			copySelected()
+		}
+
 
 		numbers[selected].re *= 0
 	}
@@ -238,7 +318,12 @@
 		if(evt.currentTarget.disabled) {
 			return
 		}
-		const mag = Math.sqrt(numbers[selected].re*numbers[selected].re + numbers[selected].im*numbers[selected].im)
+
+		if(!inplaceEdit) {
+			copySelected()
+		}
+
+		const mag = Math.hypot(numbers[selected].re, numbers[selected].im)
 		numbers[selected].re = mag
 		numbers[selected].im = 0
 	}
@@ -247,16 +332,40 @@
 		if(evt.currentTarget.disabled) {
 			return
 		}
-		const mag = Math.sqrt(numbers[selected].re*numbers[selected].re + numbers[selected].im*numbers[selected].im)
+
+		if(!inplaceEdit) {
+			copySelected()
+		}
+
+		const mag = Math.hypot(numbers[selected].re, numbers[selected].im)
 
 		numbers[selected].re = 0
 		numbers[selected].im = mag
+	}
+	
+	function rotateCCWSelected(evt) {
+		if(evt.currentTarget.disabled) {
+			return
+		}
+
+		if(!inplaceEdit) {
+			copySelected()
+		}
+
+		const newRe = -numbers[selected].im
+		numbers[selected].im = numbers[selected].re
+		numbers[selected].re = newRe
 	}
 
 	function squareSelected(evt) {
 		if(evt.currentTarget.disabled) {
 			return
 		}
+
+		if(!inplaceEdit) {
+			copySelected()
+		}
+
 
 		const newRe = numbers[selected].re*numbers[selected].re - numbers[selected].im*numbers[selected].im
 		const newIm = 2*numbers[selected].re*numbers[selected].im
@@ -269,7 +378,12 @@
 			return
 		}
 
-		const mag = Math.sqrt(numbers[selected].re*numbers[selected].re + numbers[selected].im*numbers[selected].im)
+		if(!inplaceEdit) {
+			copySelected()
+		}
+
+
+		const mag = Math.hypot(numbers[selected].re, numbers[selected].im)
 		let phase = Math.atan2(numbers[selected].im, numbers[selected].re)
 		if(phase < 0) {
 			phase +=Math.PI*2
@@ -286,7 +400,12 @@
 			return
 		}
 
-		const mag = Math.sqrt(numbers[selected].re*numbers[selected].re + numbers[selected].im*numbers[selected].im)
+		if(!inplaceEdit) {
+			copySelected()
+		}
+
+
+		const mag = Math.hypot(numbers[selected].re, numbers[selected].im)
 		let phase = Math.atan2(numbers[selected].im, numbers[selected].re)
 		if(phase < 0) {
 			phase +=Math.PI*2
@@ -303,7 +422,11 @@
 			return
 		}
 
-		const mag = Math.sqrt(numbers[selected].re*numbers[selected].re + numbers[selected].im*numbers[selected].im)
+		if(!inplaceEdit) {
+			copySelected()
+		}
+
+		const mag = Math.hypot(numbers[selected].re, numbers[selected].im)
 		let phase = Math.atan2(numbers[selected].im, numbers[selected].re)
 		if(phase < 0) {
 			phase +=Math.PI*2
@@ -315,10 +438,7 @@
 		numbers[selected].im = Math.sin(newPhase) * newMag
 	}
 	
-	function copySelected(evt) {
-		if(evt.currentTarget.disabled) {
-			return
-		}
+	function copySelected() {
 		if(addNumber(numbers[selected].re, numbers[selected].im)) {
 			selected = numbers.length - 1
 		}
@@ -343,18 +463,39 @@
 
 	.controls {
 		position: absolute; 
-		top:1em; 
-		gap: 1em;
+		top:1em;
+		left: 1em;
+		gap: 0.1em;
 		display: flex;
+		flex-direction: column;
 		z-index: 10;
+		background-color: #f0f0f0ee;
+		padding: 1em;
+		z-index: 1000;
+		max-width: 17em;
+		width: 100%;
+	}
+
+	hr {
+		width: 100%;
+		box-sizing: border-box;
+		border: 0;
+		height: 1px;
+		background-color: #333;
 	}
 
 	.buttons {
 		gap: 0.1em; 
 		padding: 0.2em;
 		display: flex; 
-		flex-direction: column;
-		background-color: #0002;
+		flex-wrap: wrap;
+		max-width: 15em;
+		flex-direction: row;
+		justify-content: stretch;
+	}
+
+	.buttons > button {
+		flex-grow: 1;
 	}
 
 	.controls.hidden {
@@ -369,35 +510,35 @@
 		cursor: pointer;
 		margin: 0;
 	}
+
+
+	.container {
+		position: absolute;
+		inset: 0;
+		display: grid;
+		grid-template-columns: 1fr;
+	}
 </style>
 
-<svelte:window on:pointerup={stopCreate} on:pointerup={stopScale} on:pointerup={stopTranslating} on:pointerup={stopMul} on:pointermove={changeMul} on:pointermove={changeCreate} on:pointermove={changeScale} on:pointermove={changeTranslating} />
-<div style="padding-top: 3em">
+<div class="container">
+
+	<input on:wheel|preventDefault={onWheel} style="font-size: 0.8em; margin: 0; padding: 0; position: absolute; right: 1em; bottom: 1em; z-index: 100;" type="range" bind:value={zoomFactor} min="{minZoom}" max="{maxZoom}" step="0.1">
+
+		
+
 	<div class="controls" class:hidden={selected==null}>
 		
-		<div class="buttons">
-			<button type="button" on:click={deleteSelected} disabled={selected==null}>Delete</button>
-			<button type="button" on:click={negateSelected} disabled={selected==null}>Negate</button>
-			<button type="button" on:click={conjugateSelected} disabled={selected==null}>Conjugate</button>
-			<button type="button" on:click={halfSelected} disabled={selected==null}>&sdot;0.5</button>
-			<button type="button" on:click={squareSelected} disabled={selected==null}>Square</button>
-			<button type="button" on:click={rootSelected} disabled={selected==null}>Root</button>
-			<button type="button" on:click={invertSelected} disabled={selected==null}>Invert</button>
-			<button type="button" on:click={normalizeSelected} disabled={selected==null}>Normalize</button>
-			<button type="button" on:click={copySelected} disabled={selected==null}>Copy</button>
-			<button type="button" on:click={projectReSelected} disabled={selected==null}>Project Real</button>
-			<button type="button" on:click={projectImSelected} disabled={selected==null}>Project Imaginary</button>
-			<button type="button" on:click={rotateReSelected} disabled={selected==null}>Rotate Real</button>
-			<button type="button" on:click={rotateImSelected} disabled={selected==null}>Rotate Imaginary</button>
 
-		</div>
-		<div>
 	{#if selected !== null}
-		<h2>Selected: <math xmlns = "http://www.w3.org/1998/Math/MathML">
+		<h2 style="display: flex; align-items: end; gap: 0.2em">Selected:  <input style:margin="0" style:padding="0" style:width="1em" style:height="1em" type="color" bind:value={numbers[selected].color}>
+<math display="inline" xmlns = "http://www.w3.org/1998/Math/MathML">
 			<mrow>
-		<mn><msub><mn>z</mn>{selected}</msub></mn></mrow></math></h2>
+		<mn><msub><mn>z</mn>{selected}</msub></mn></mrow></math>
+		</h2>
 
-		{@const mag = Math.sqrt(numbers[selected].re*numbers[selected].re + numbers[selected].im*numbers[selected].im)}
+		<hr>
+
+		{@const mag = Math.hypot(numbers[selected].re, numbers[selected].im)}
 		{@const phase = Math.atan2(numbers[selected].im, numbers[selected].re)}
 
 		<math xmlns = "http://www.w3.org/1998/Math/MathML">
@@ -413,7 +554,7 @@
          <mtr>
          	<mtd></mtd>
          	<mtd><mo>=</mo></mtd>
-         	<mtd><mrow><mn> {decimalFormat.format(mag)}</mn><mo>&sdot;</mo><msup><mn>e</mn><mrow><mo>{phase<0?'-':'+'}</mo><mn mathvariant='normal'>j</mn><mo>&InvisibleTimes;</mo><mn>{decimalFormat.format(Math.abs(phase/Math.PI))}</mn><mo>&InvisibleTimes;</mo><mn>&pi;</mn></mrow></msup></mrow></mtd>
+         	<mtd><mrow><mn> {decimalFormat.format(mag)}</mn><mo>&InvisibleTimes;</mo><msup><mn>e</mn><mrow><mo>{phase<0?'-':'+'}</mo><mn mathvariant='normal'>j</mn><mo>&InvisibleTimes;</mo><mn>{decimalFormat.format(Math.abs(phase/Math.PI))}</mn><mo>&InvisibleTimes;</mo><mn>&pi;</mn></mrow></msup></mrow></mtd>
          	<mtd><mtext>(Polar)</mtext></mtd>
          </mtr>
          <mtr>
@@ -503,6 +644,41 @@
 
       </mtable>
 		</math>
+
+		<hr>
+
+
+			<button type="button" on:click={deleteSelected} disabled={selected==null}>Delete</button>
+			<button type="button" on:click={copySelected} disabled={selected==null || colors.length == 0}>Duplicate</button>
+
+
+		<hr>
+		<div style="display: flex;">
+			<label style="padding: 0.3em  0.5em 0"><input type="radio" disabled={colors.length == 0} value={true} bind:group={inplaceEdit}> Modify</label>
+			<label style="padding: 0.3em  0.5em 0"><input type="radio" disabled={colors.length == 0} value={false} bind:group={inplaceEdit}> Construct</label>
+		</div>
+<div class="buttons">
+
+			<button type="button" on:click={negateSelected} disabled={selected==null}>Negate</button>
+			<button type="button" on:click={conjugateSelected} disabled={selected==null}>Conjugate</button>
+			<button type="button" on:click={invertSelected} disabled={selected==null}>Invert</button>
+		</div>
+<div class="buttons">
+			<button type="button" on:click={normalizeSelected} disabled={selected==null}>Normalize</button>
+			<button type="button" on:click={squareSelected} disabled={selected==null}>Square</button>
+			<button type="button" on:click={rootSelected} disabled={selected==null}>Square-Root</button>
+			<button type="button" on:click={halfSelected} disabled={selected==null}>Divide by two</button>
+
+		</div>
+<div class="buttons">
+			<button type="button" on:click={projectReSelected} disabled={selected==null}>Project onto Re</button>
+			<button type="button" on:click={projectImSelected} disabled={selected==null}>Project onto Im</button>
+			<button type="button" on:click={rotateReSelected} disabled={selected==null}>Rotate onto Re</button>
+			<button type="button" on:click={rotateImSelected} disabled={selected==null}>Rotate onto Im</button>
+			<button type="button" on:click={rotateCCWSelected} disabled={selected==null}>Rotate 90° (&sdot; i)</button>
+
+		</div>
+		<hr>
 	{#if translating}
 		<p>Adding
 		<math xmlns = "http://www.w3.org/1998/Math/MathML">
@@ -510,169 +686,186 @@
 		<mn><msub><mn>z</mn>{selected}</msub></mn> <mo>+</mo><mn>{#if snap !== null}<msub><mn>z</mn>{snap}</msub>{:else}...{/if}</mn>
 			</mrow>
 		</math></p>
-	{/if}
-	{#if rotating}
+	{:else if rotating}
 		<p>Multiplying
 		<math xmlns = "http://www.w3.org/1998/Math/MathML">
 			<mrow>
 		<mn><msub><mn>z</mn>{selected}</msub></mn> <mo>&sdot;</mo><mn>{#if snap !== null}<msub><mn>z</mn>{snap}</msub>{:else}...{/if}</mn>
 			</mrow>
 		</math></p>
-	{/if}
-	{#if scaling}
+	{:else if scaling}
 		<p>Modifying 
 		<math xmlns = "http://www.w3.org/1998/Math/MathML">
 			<mrow>
 		<mn><msub><mn>z</mn>{selected}</msub></mn>
 			</mrow>
 		</math></p>
+	{:else}
+	<div style="font-size: small;">
+		<p>Drag the <em>Square handle</em> to combine two Complex numbers via addition.</p>
+		<p>Drag the <em>Wedge handle</em> to combine two Complex numbers via multiplication.</p>
+		<p>Drag the <em>Circle handle</em> to scale and rotate the number.</p>
+	</div>
 	{/if}
 	{/if}
-</div>
 </div>
 
-<svg style="user-select: none;" cursor={creating!==null?"move":"default"} bind:this={svg} viewBox="-500 -500 1000 1000" on:keydown={selectNum} tabindex="0" role="button" on:pointerdown={selectNum}>
-	<path d="M-500,0H500M0,-500V500" stroke="black"/>
-	<path fill="black" d="M0-500l-5,10h10z"></path>
-	<path fill="black" d="M500,0l-10,-5v10z"></path>
+<SVGCanvas let:minVisible let:maxVisible on:lkdragstart={onDragStart}
+on:lkdragend={onDragEnd}
+on:lkdragmove={onDragMove} on:wheel={onWheel}>
+	<path d="M{minVisible.x+50},0H{maxVisible.x-50}M0,{minVisible.y+50}V{maxVisible.y-50}" stroke="black"/>
+	<path fill="black" d="M0,{minVisible.y+50}l-5,10h10z"></path>
+	<path fill="black" d="M{maxVisible.x-50},0l-10,-5v10z"></path>
 
 	<g>
 		{#if selected !== null}
 		{@const num = numbers[selected]}
-		{@const mag = Math.sqrt(num.re*num.re + num.im*num.im)}
+		{@const mag = Math.hypot(num.re, num.im)}
 		{@const phase = Math.atan2(num.im, num.re)}
-			<line  class:hidden={translating||rotating} stroke-linecap="round" x1="0" y1="0" x2={num.re*100} y2={-num.im*100} stroke="lightblue" stroke-width="10" />
+			<line  class:hidden={translating||rotating} stroke-linecap="round" x1="0" y1="0" x2={num.re*unitScale} y2={-num.im*unitScale} stroke="lightblue" stroke-width="10" />
 			<path class:hidden={scaling||translating||rotating}  d="M0,0m-8,-8v16h16v-16h-16" fill="none" stroke="lightblue" stroke-width="10"></path>
-			<circle class:hidden={translating||rotating}  cx={num.re*100} cy={-num.im*100} r="10" stroke="lightblue" stroke-width="10"></circle>
+			<circle class:hidden={translating||rotating}  cx={num.re*unitScale} cy={-num.im*unitScale} r="10" stroke="lightblue" stroke-width="10"></circle>
 
-			<path  class:hidden={translating||rotating} d="M0,{-num.im*100}H{num.re*100}M{num.re*100},0V{-num.im*100}" fill="none" stroke="{num.color}" stroke-opacity="0.4" stroke-width="2" stroke-dasharray="5 5"></path>
-			<path  class:hidden={translating||rotating} d="M100,0A 100 100 0 0 {num.im<0?1:0} {num.re/mag*100} {-num.im/mag*100}" fill="none" stroke-opacity="0.4" fill-opacity="0.3" stroke="{num.color}" stroke-width="2" stroke-dasharray="5 5"></path>
-			<path  class:hidden={translating||rotating} d="M0,0H100A 100 100 0 0 {num.im<0?1:0} {num.re/mag*100} {-num.im/mag*100}" fill="{num.color}" fill-opacity="0.2"></path>
+			<path  class:hidden={translating||rotating} d="M0,{-num.im*unitScale}H{num.re*unitScale}M{num.re*unitScale},0V{-num.im*unitScale}" fill="none" stroke="{num.color}" stroke-opacity="0.4" stroke-width="2" stroke-dasharray="5 5"></path>
+			<path  class:hidden={translating||rotating} d="M{unitScale},0A {unitScale} {unitScale} 0 0 {num.im<0?1:0} {num.re/mag*unitScale} {-num.im/mag*unitScale}" fill="none" stroke-opacity="0.4" fill-opacity="0.3" stroke="{num.color}" stroke-width="2" stroke-dasharray="5 5"></path>
+			<path  class:hidden={translating||rotating} d="M0,0H{unitScale}A {unitScale} {unitScale} 0 0 {num.im<0?1:0} {num.re/mag*unitScale} {-num.im/mag*unitScale}" fill="{num.color}" fill-opacity="0.2"></path>
 			
-			<text  class:hidden={translating||rotating} x="{num.re>0?-10:10}" y="{-num.im*100+5}" text-anchor="{num.re>0?"end":"start"}">{decimalFormat.format(num.im)}</text>
-			<text  class:hidden={translating||rotating} y="{num.im>0?30:-20}" x="{num.re*100}" text-anchor="middle">{decimalFormat.format(num.re)}</text>
-			<text  class:hidden={translating||rotating} y="{-num.im*100/2}" x="{num.re*100/2+(num.im>0!==num.re>0?10:-10)}" text-anchor="{num.im>0!==num.re>0?"start":"end"}">{decimalFormat.format(mag)}</text>
-			<text  class:hidden={translating||rotating} y="{-Math.sin(phase/2)*50}" x="{Math.cos(phase/2)*50}" text-anchor="middle">{decimalFormat.format(phase/Math.PI)}&pi;</text>
+			<text  class:hidden={translating||rotating} x="{num.re>0?-10:10}" y="{-num.im*unitScale+5}" text-anchor="{num.re>0?"end":"start"}">{decimalFormat.format(num.im)}</text>
+			<text  class:hidden={translating||rotating} y="{num.im>0?30:-20}" x="{num.re*unitScale}" text-anchor="middle">{decimalFormat.format(num.re)}</text>
+			<text  class:hidden={translating||rotating} y="{-num.im*unitScale/2}" x="{num.re*unitScale/2+(num.im>0!==num.re>0?10:-10)}" text-anchor="{num.im>0!==num.re>0?"start":"end"}">{decimalFormat.format(mag)}</text>
+			<text  class:hidden={translating||rotating} y="{-Math.sin(phase/2)*unitScale*0.5+5}" x="{Math.cos(phase/2)*unitScale*0.5}" text-anchor="middle">{decimalFormat.format(phase/Math.PI)}&pi;</text>
 		{/if}
 	</g>
 	
 	{#each numbers as num, ni}
-		{@const mag = Math.sqrt(num.re*num.re + num.im*num.im)}
+		{@const mag = Math.hypot(num.re, num.im)}
 		{@const phase = Math.atan2(num.im, num.re)}
-		<line class:dimmed={(rotating||translating) && ni==selected} stroke-linecap="round" x1="0" y1="0" x2={num.re*100} y2={-num.im*100} stroke={num.color} stroke-width="3" />
-		<polygon class:dimmed={(rotating||translating) && ni==selected}  points="-12 10 -12 -10 3 0" transform="rotate({-phase*180/Math.PI}) translate({100*mag}, 0)" fill={num.color} />
+		<line class:dimmed={(rotating||translating) && ni==selected} stroke-linecap="round" x1="0" y1="0" x2={num.re*unitScale} y2={-num.im*unitScale} stroke={num.color} stroke-width="3" />
+		<polygon class:dimmed={(rotating||translating) && ni==selected}  points="-12 10 -12 -10 3 0" transform="rotate({-phase*180/Math.PI}) translate({unitScale*mag}, 0)" fill={num.color} />
 	{/each}	
 
 	
 	{#each numbers as num, ni}
-		{@const mag = Math.sqrt(num.re*num.re + num.im*num.im)}
+		{@const mag = Math.hypot(num.re, num.im)}
 		{@const phase = Math.atan2(num.im, num.re)}
-		<g on:keydown={selectNum} tabindex="0" role="button" data-num-index={ni} on:pointerdown={selectNum} pointer-events="all">
-		<line stroke-linecap="round" x1="0" y1="0" x2={num.re*100} y2={-num.im*100} stroke="none"  stroke-width="10" />
-		<polygon points="-12 10 -12 -10 3 0" transform="rotate({-phase*180/Math.PI}) translate({100*mag}, 0)" fill="none" />
+		<g on:keydown={selectNum} tabindex="0" role="button" data-num-index={ni} pointer-events="all">
+		<line stroke-linecap="round" x1="0" y1="0"  data-num-index={ni} x2={num.re*unitScale} y2={-num.im*unitScale} stroke="none"  stroke-width="20" pointer-events="all" />
+		<polygon points="-12 10 -12 -10 3 0"  data-num-index={ni} transform="rotate({-phase*180/Math.PI}) translate({unitScale*mag}, 0)" fill="none" pointer-events="all" />
 		</g>
 	{/each}
 
-	{#if selected === null && (creating == null || creating == true) && colors.length}
-		<circle cursor="move" on:pointerdown={startCreate} cx="100" cy="0" r="10" fill="black" stroke="black"></circle>
-		<path pointer-events="none" d="M100,0m-6,0h12M100,0m0,-6v12" stroke="white" stroke-width="2"></path>
+	{#if selected === null && (creating == null || creating == true)}
+		{#if colors.length > 0}
+		<circle data-action="create" cursor="move" cx="{clamp(unitScale, 50, 300)}" cy="0" r="10" fill="black" stroke="black"></circle>
+		<path pointer-events="none" d="M{clamp(unitScale, 50, 300)},0m-6,0h12M{clamp(unitScale, 50, 300)},0m0,-6v12" stroke="white" stroke-width="2"></path>
+		{/if}
 
 
-	{#each numbers as num, ni}
-		<foreignObject pointer-events="none" width="30" height="30" x={num.re*100 + Math.sign(num.re)*10 - 15} y={-num.im*100 - 15 - Math.sign(num.im)*10} requiredExtensions="http://www.w3.org/1998/Math/MathML">
-			<math style:font-size="1.2em" xmlns="http://www.w3.org/1998/Math/MathML" display="block">
-				<mrow><msub><mn>z</mn><mn>{ni}</mn></msub></mrow>
-			</math>
-		</foreignObject>	
-	{/each}	
+		{#each numbers as num, ni}
+			<foreignObject width="30" height="30" x={num.re*unitScale + Math.sign(num.re)*10 - 15} y={-num.im*unitScale - 15 - Math.sign(num.im)*10} requiredExtensions="http://www.w3.org/1998/Math/MathML">
+				<math pointer-events="all"  data-num-index={ni} style:font-size="1.2em" xmlns="http://www.w3.org/1998/Math/MathML" display="block">
+					<mrow><msub><mn>z</mn><mn>{ni}</mn></msub></mrow>
+				</math>
+			</foreignObject>	
+		{/each}	
 
 	{/if}
 
 	
 	{#if creating !== null && creating !== true}
 		{@const num = creating}
-		{@const mag = Math.sqrt(num.re*num.re + num.im*num.im)}
+		{@const mag = Math.hypot(num.re, num.im)}
 
-		<path  d="M0,{-num.im*100}H{num.re*100}M{num.re*100},0V{-num.im*100}" fill="none" stroke="lightgreen" stroke-width="2" stroke-dasharray="5 5"></path>
-		<path  d="M100,0A 100 100 0 0 {num.im<0?1:0} {num.re/mag*100} {-num.im/mag*100}" fill="none" fill-opacity="0.2" stroke="lightgreen" stroke-width="2" stroke-dasharray="5 5"></path>
-		<path  d="M0,0H100A 100 100 0 0 {num.im<0?1:0} {num.re/mag*100} {-num.im/mag*100}" fill="lightgreen" fill-opacity="0.2"></path>
+		<path  d="M0,{-num.im*unitScale}H{num.re*unitScale}M{num.re*unitScale},0V{-num.im*unitScale}" fill="none" stroke={draftColor} stroke-width="2" stroke-dasharray="5 5"></path>
+		<path  d="M{unitScale},0A {unitScale} {unitScale} 0 0 {num.im<0?1:0} {num.re/mag*unitScale} {-num.im/mag*unitScale}" fill="none" fill-opacity="0.2" stroke={draftColor} stroke-width="2" stroke-dasharray="5 5"></path>
+		<path  d="M0,0H{unitScale}A {unitScale} {unitScale} 0 0 {num.im<0?1:0} {num.re/mag*unitScale} {-num.im/mag*unitScale}" fill={draftColor} fill-opacity="0.2"></path>
 		
-		<line stroke-linecap="round" x1="0" y1="0" x2={num.re*100} y2={-num.im*100} stroke="lightgreen" stroke-width="4" />
+		<line stroke-linecap="round" x1="0" y1="0" x2={num.re*unitScale} y2={-num.im*unitScale} stroke={draftColor} stroke-width="4" />
 		
-		<circle on:pointerdown={startCreate} cx={num.re*100} cy={-num.im*100} r="10" fill="black" stroke="black"></circle>
-		<path pointer-events="none" d="M{num.re*100},{-num.im*100}m-6,0h12m-6,-6v12" stroke="white" stroke-width="2"></path>
+		<circle cx={num.re*unitScale} cy={-num.im*unitScale} r="10" fill="black" stroke="black"></circle>
+		<path pointer-events="none" d="M{num.re*unitScale},{-num.im*unitScale}m-6,0h12m-6,-6v12" stroke="white" stroke-width="2"></path>
 	{/if}
 
 	{#if selected !== null}
 		{@const num = numbers[selected]}
-		{@const mag = Math.sqrt(num.re*num.re + num.im*num.im)}		
-		<path  d="M0,0H100A 100 100 0 0 {num.im<0?1:0} {num.re/mag*100} {-num.im/mag*100}" fill="none" pointer-events="none"></path>
-		<path stroke-linejoin="round" class:hidden={scaling||translating||rotating} on:pointerdown={startMul} cursor="move" d="M90,4h24a 16 16 0 0 0 -10 -18z" stroke="{num.color}" fill="white" stroke-width="3"></path>
-		<path class:hidden={scaling||translating||rotating} on:pointerdown={startTranslating} cursor="move" d="M0,0m-8,-8v16h16v-16h-16" stroke="{num.color}" fill="white" stroke-width="3"></path>
-		<circle class:hidden={translating||rotating} on:pointerdown={startScale} cursor="move" cx={num.re*100} cy={-num.im*100} r="10" stroke="{num.color}" fill="white" stroke-width="3"></circle>
+		{@const mag = Math.hypot(num.re, num.im)}		
+		<path  d="M0,0H{unitScale}A {unitScale} {unitScale} 0 0 {num.im<0?1:0} {num.re/mag*unitScale} {-num.im/mag*unitScale}" fill="none" pointer-events="none"></path>
+		<path  data-action="rotate" stroke-linejoin="round" class:hidden={scaling||translating||rotating} cursor="move" d="M{unitScale-10},4h24a 16 16 0 0 0 -10 -18z" stroke="{num.color}" fill="white" stroke-width="3"></path>
+		<path  data-action="translate" class:hidden={scaling||translating||rotating} cursor="move" d="M0,0m-8,-8v16h16v-16h-16" stroke="{num.color}" fill="white" stroke-width="3"></path>
+		<circle  data-action="scale" class:hidden={translating||rotating} cursor="move" cx={num.re*unitScale} cy={-num.im*unitScale} r="10" stroke="{num.color}" fill="white" stroke-width="3"></circle>
 
 	{/if}
 
 	{#if translating !== null && selected !== null}
 			{#each numbers as num, ni}
-				<path d="M{num.re*100},{-num.im*100}m-8,-8v16h16v-16h-16" stroke="{num.color}" fill="white" stroke-width="{snap==ni?10:3}"></path>
+				<path d="M{num.re*unitScale},{-num.im*unitScale}m-8,-8v16h16v-16h-16" stroke="{num.color}" fill="white" stroke-width="{snap==ni?10:3}"></path>
 			{/each}
 		
 		{@const num = numbers[selected]}
 		{@const newmag = Math.hypot((num.re+translating.re), (num.im+translating.im))}
 		{@const newphase = Math.atan2((num.im+translating.im), (num.re+translating.re))}
-		<line stroke-linecap="round" x1={0} y1={0}  x2={(num.re+translating.re)*100} y2={-(num.im+translating.im)*100} stroke="lightblue" stroke-width="10" />
-		<polygon points="-12 10 -12 -10 3 0" transform="rotate({-newphase*180/Math.PI}) translate({100*newmag}, 0)" fill="none" stroke="lightblue" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"  />
+		<line stroke-linecap="round" x1={0} y1={0}  x2={(num.re+translating.re)*unitScale} y2={-(num.im+translating.im)*unitScale} stroke="lightblue" stroke-width="10" />
+		<polygon points="-12 10 -12 -10 3 0" transform="rotate({-newphase*180/Math.PI}) translate({unitScale*newmag}, 0)" fill="none" stroke="lightblue" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"  />
 
-		<line stroke-linecap="round" stroke-linejoin="round"  x1={0} y1={0} x2={(num.re+translating.re)*100} y2={-(num.im+translating.im)*100} stroke="{num.color}" stroke-width="3" />
-		<polygon points="-12 10 -12 -10 3 0" transform="rotate({-newphase*180/Math.PI}) translate({100*newmag}, 0)" fill={num.color} />
+		<line stroke-linecap="round" stroke-linejoin="round"  x1={0} y1={0} x2={(num.re+translating.re)*unitScale} y2={-(num.im+translating.im)*unitScale} stroke="{num.color}" stroke-width="3" />
+		<polygon points="-12 10 -12 -10 3 0" transform="rotate({-newphase*180/Math.PI}) translate({unitScale*newmag}, 0)" fill={num.color} />
 
 		
-		<line class="hidden" stroke-linecap="round" stroke-linejoin="round"  x1={(translating.re)*100} y1={-(translating.im)*100}  x2={(num.re+translating.re)*100} y2={-(num.im+translating.im)*100} stroke="lightblue" stroke-width="10" />
-		<path d="M{translating.re*100},{-translating.im*100}0m-8,-8v16h16v-16h-16" fill="none" stroke="lightblue" stroke-width="10"></path>
+		<line class="hidden" stroke-linecap="round" stroke-linejoin="round"  x1={(translating.re)*unitScale} y1={-(translating.im)*unitScale}  x2={(num.re+translating.re)*unitScale} y2={-(num.im+translating.im)*unitScale} stroke="lightblue" stroke-width="10" />
+		<path d="M{translating.re*unitScale},{-translating.im*unitScale}0m-8,-8v16h16v-16h-16" fill="none" stroke="lightblue" stroke-width="10"></path>
 
-		<line stroke-linecap="round" stroke-linejoin="round"  x1={(num.re)*100} y1={-(num.im)*100}  x2={(num.re+translating.re)*100} y2={-(num.im+translating.im)*100} stroke-dasharray="5 5" stroke="gray" stroke-width="2" />
-		<line stroke-linecap="round" stroke-linejoin="round"  x1={0} y1={0}  x2={(translating.re)*100} y2={-(translating.im)*100} stroke-dasharray="5 5" stroke="gray" stroke-width="2" />
-		<path on:pointerdown={startTranslating} cursor="move" d="M{translating.re*100},{-translating.im*100}m-8,-8v16h16v-16h-16" stroke="{num.color}" fill="white" stroke-width="3"></path>
+		<line stroke-linecap="round" stroke-linejoin="round"  x1={(num.re)*unitScale} y1={-(num.im)*unitScale}  x2={(num.re+translating.re)*unitScale} y2={-(num.im+translating.im)*unitScale} stroke-dasharray="3 8" stroke="gray" stroke-width="2" />
+		<line stroke-linecap="round" stroke-linejoin="round"  x1={0} y1={0}  x2={(translating.re)*unitScale} y2={-(translating.im)*unitScale} stroke-dasharray="3 8" stroke="gray" stroke-width="2" />
+		
+
+
+		<polygon points="-10 8 -10 -8 3 0" transform="translate({(num.re+translating.re*0.8)*unitScale}, {-(num.im+translating.im*0.8)*unitScale} ) rotate({Math.atan2(-translating.im, translating.re)/Math.PI*180})" fill="gray" />
+		<polygon points="-10 8 -10 -8 3 0" transform="translate({(translating.re)*unitScale*0.8}, {-(translating.im)*unitScale*0.8} ) rotate({Math.atan2(-translating.im, translating.re)/Math.PI*180})" fill="gray" />
+
+
+		<path cursor="move" d="M{translating.re*unitScale},{-translating.im*unitScale}m-8,-8v16h16v-16h-16" stroke="{num.color}" fill="white" stroke-width="3"></path>
 	
 	{/if}
 
 	{#if rotating !== null && selected !== null}
 		
 			{#each numbers as num, ni}
-				<path stroke-linejoin="round" d="M{num.re*100},{-num.im*100}m-15,10h24a 16 16 0 0 0 -10 -18z" stroke="{num.color}" fill="white" stroke-width={snap==ni?10:3}></path>
+				<path stroke-linejoin="round" d="M{num.re*unitScale},{-num.im*unitScale}m-15,10h24a 16 16 0 0 0 -10 -18z" stroke="{num.color}" fill="white" stroke-width={snap==ni?10:3}></path>
 			{/each}
 		
 		{@const num = numbers[selected]}
-		{@const nummag = Math.sqrt(num.re*num.re + num.im*num.im)}
+		{@const nummag = Math.hypot(num.re, num.im)}
 		{@const numphase = Math.atan2(num.im, num.re)}
-		{@const mag = Math.sqrt(rotating.re*rotating.re + rotating.im*rotating.im)}		
+		{@const mag = Math.hypot(rotating.re, rotating.im)}		
 		{@const phase = Math.atan2(rotating.im, rotating.re)}
 
-		<path d="M0,0L{rotating.re*100} {-rotating.im*100}M100,0A 100 100 0 0 {rotating.im<0?1:0} {rotating.re/mag*100} {-rotating.im/mag*100}"  fill="none" stroke-dasharray="5 5" stroke="gray" stroke-width="3" fill-opacity="0.2"></path>
-		<path d="M0,0L {num.re*100/nummag*mag} {-num.im*100/nummag*mag}A {100*mag} {100*mag} 0 0 {rotating.im<0?1:0} {Math.cos(numphase+phase)*100*mag} {-Math.sin(numphase+phase)*100*mag}"  fill="none" stroke-dasharray="5 5" stroke="gray" stroke-width="3" fill-opacity="0.2"></path>
+		<path d="M{rotating.re*unitScale} {-rotating.im*unitScale}M{unitScale},0A {unitScale} {unitScale} 0 0 {rotating.im<0?1:0} {rotating.re/mag*unitScale} {-rotating.im/mag*unitScale}"  fill="none" stroke-dasharray="5 5" stroke="gray" stroke-width="3" fill-opacity="0.2"></path>
+		<path d="M {num.re*unitScale/nummag*mag} {-num.im*unitScale/nummag*mag}A {unitScale*mag} {unitScale*mag} 0 0 {rotating.im<0?1:0} {Math.cos(numphase+phase)*unitScale*mag} {-Math.sin(numphase+phase)*unitScale*mag}"  fill="none" stroke-dasharray="5 5" stroke="gray" stroke-width="3" fill-opacity="0.2"></path>
 		
 
-		<path d="M0,0L100,0L{(num.re)*100},{-(num.im)*100}" fill="{num.color}" fill-opacity="0.05"></path>
-		<path d="M0,0L{Math.cos(phase)*(mag)*100},{-Math.sin(phase)*(mag)*100}L{Math.cos(numphase+phase)*(nummag*mag)*100},{-Math.sin(numphase+phase)*(nummag*mag)*100}" fill="{num.color}" fill-opacity="0.05"></path>
-		<path d="M0,0L{Math.cos(numphase+phase)*(nummag*mag)*100},{-Math.sin(numphase+phase)*(nummag*mag)*100}" stroke="lightblue" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" ></path>
-		<polygon points="-12 10 -12 -10 3 0" transform="rotate({-(numphase+phase)*180/Math.PI}) translate({100*nummag*mag}, 0)" fill="none" stroke="lightblue" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"  />
+		<path d="M0,0L{unitScale},0L{(num.re)*unitScale},{-(num.im)*unitScale}" fill="{num.color}" fill-opacity="0.05"></path>
+		<path d="M0,0L{Math.cos(phase)*(mag)*unitScale},{-Math.sin(phase)*(mag)*unitScale}L{Math.cos(numphase+phase)*(nummag*mag)*unitScale},{-Math.sin(numphase+phase)*(nummag*mag)*unitScale}" fill="{num.color}" fill-opacity="0.05"></path>
+		<path d="M0,0L{Math.cos(numphase+phase)*(nummag*mag)*unitScale},{-Math.sin(numphase+phase)*(nummag*mag)*unitScale}" stroke="lightblue" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" ></path>
+		<polygon points="-12 10 -12 -10 3 0" transform="rotate({-(numphase+phase)*180/Math.PI}) translate({unitScale*nummag*mag}, 0)" fill="none" stroke="lightblue" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"  />
 
 
-		<path d="M0,0L{Math.cos(numphase+phase)*(nummag*mag)*100},{-Math.sin(numphase+phase)*(nummag*mag)*100}" stroke="{num.color}" stroke-width="3"></path>
-		<polygon points="-12 10 -12 -10 3 0" transform="rotate({-(numphase+phase)*180/Math.PI}) translate({100*nummag*mag}, 0)" fill={num.color} />
+		<path d="M0,0L{Math.cos(numphase+phase)*(nummag*mag)*unitScale},{-Math.sin(numphase+phase)*(nummag*mag)*unitScale}" stroke="{num.color}" stroke-width="3"></path>
+		<polygon points="-12 10 -12 -10 3 0" transform="rotate({-(numphase+phase)*180/Math.PI}) translate({unitScale*nummag*mag}, 0)" fill={num.color} />
 
-		<path stroke-linejoin="round" pointer-events="none" d="M{rotating.re*100},{-rotating.im*100}m-15,10h24a 16 16 0 0 0 -10 -18z" stroke="{num.color}" fill="white" stroke-width="3"></path>
+		<path stroke-linejoin="round" pointer-events="none" d="M{rotating.re*unitScale},{-rotating.im*unitScale}m-15,10h24a 16 16 0 0 0 -10 -18z" stroke="{num.color}" fill="white" stroke-width="3"></path>
 	{/if}
 
 	<g>
 		
-	<text x="480" y="-10" text-anchor="end">Re</text>
-	<text x="10" y="-480" text-anchor="start">Im</text>
-	<text x="100" y="30" text-anchor="middle">1</text>
-	<text x="-10" y="-90" text-anchor="end">1j</text>
-	<text x="-100" y="30" text-anchor="middle">-1</text>
-	<text x="-10" y="110" text-anchor="end">-1j</text>
+	<text x="{maxVisible.x- 60}" y="-10" text-anchor="end">Re</text>
+	<text x="10" y="{-maxVisible.y + 60}" text-anchor="start">Im</text>
+
+	{#if unitScale > 30}
+	<text x="{unitScale}" y="30" text-anchor="middle">1</text>
+	<text x="-10" y="{-unitScale+10}" text-anchor="end">1j</text>
+	<text x="{-unitScale}" y="30" text-anchor="middle">-1</text>
+	<text x="-10" y="{unitScale+10}" text-anchor="end">-1j</text>
+	{/if}
 	</g>
-</svg>
+</SVGCanvas>
 </div>
