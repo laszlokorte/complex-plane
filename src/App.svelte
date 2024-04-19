@@ -568,6 +568,14 @@
 	.valid {
 		color: green;
 	}
+
+	.steps {
+		position: absolute;
+		right: 2em;
+		top: 0;
+		text-align: right;
+		pointer-events: none;
+	}
 </style>
 
 <div class="container">
@@ -676,7 +684,7 @@
 
          <mtr>
          	<mtd>
-				<mo>∠</mo><msub><mn>z</mn>{selected}</msub>
+				<mrow><mo>∠</mo><msub><mn>z</mn>{selected}</msub></mrow>
          	</mtd>
          	<mtd>
 				<mo>=</mo>
@@ -733,25 +741,12 @@
 		<hr>
 	{#if translating}
 		<p style="font-size: small;" class="todo" class:valid={snap !== null}>
-			Drag <svg style="vertical-align: middle; width: 1em; height: 1em;" viewBox="-10 -10 20 24"><rect fill="white" stroke-width="3" stroke="black" x="-8" y="-8" width="16" height="16"></rect></svg> onto <svg style="vertical-align: middle; width: 1em; height: 1em;" viewBox="-10 -10 20 24"><rect fill="white" stroke-width="3" stroke="black" x="-8" y="-8" width="16" height="16"></rect></svg> to select second operand.
+			Drag <svg style="vertical-align: middle; width: 1em; height: 1em;" viewBox="-10 -10 20 24"><rect fill="white" stroke-width="3" stroke="black" x="-8" y="-8" width="16" height="16"></rect></svg> onto <svg style="vertical-align: middle; width: 1em; height: 1em;" viewBox="-10 -10 20 24"><rect fill="white" stroke-width="3" stroke="black" x="-8" y="-8" width="16" height="16"></rect></svg> to select second operand for addition.
 		</p>
-		<p>Adding
-		<math xmlns = "http://www.w3.org/1998/Math/MathML">
-			<mrow>
-		<mn><msub><mn>z</mn>{selected}</msub></mn> <mo>+</mo><mn>{#if snap !== null}<msub><mn>z</mn>{snap}</msub>{:else}...{/if}</mn>
-			</mrow>
-		</math></p>
 	{:else if rotating}
 		<p style="font-size: small;" class="todo" class:valid={snap !== null}>
-			Drag <svg style="vertical-align: middle; width: 1em; height: 1em;" viewBox="-10 -10 20 24"><path fill="white" stroke-width="3" stroke="black" d="M-10,8H6A  8 8 0 0 0 -4 -6z"></path></svg> onto <svg style="vertical-align: middle; width: 1em; height: 1em;" viewBox="-10 -10 20 24"><path fill="white" stroke-width="3" stroke="black" d="M-10,8H6A  8 8 0 0 0 -4 -6z"></path></svg> to select second operand.
+			Drag <svg style="vertical-align: middle; width: 1em; height: 1em;" viewBox="-10 -10 20 24"><path fill="white" stroke-width="3" stroke="black" d="M-10,8H6A  8 8 0 0 0 -4 -6z"></path></svg> onto <svg style="vertical-align: middle; width: 1em; height: 1em;" viewBox="-10 -10 20 24"><path fill="white" stroke-width="3" stroke="black" d="M-10,8H6A  8 8 0 0 0 -4 -6z"></path></svg> to select second operand for multiplication.
 		</p>
-
-		<p>Multiplying
-		<math xmlns = "http://www.w3.org/1998/Math/MathML">
-			<mrow>
-		<mn><msub><mn>z</mn>{selected}</msub></mn> <mo>&sdot;</mo><mn>{#if snap !== null}<msub><mn>z</mn>{snap}</msub>{:else}...{/if}</mn>
-			</mrow>
-		</math></p>
 	{:else if scaling}
 		<p>Modifying 
 		<math xmlns = "http://www.w3.org/1998/Math/MathML">
@@ -772,6 +767,87 @@
 	{/if}
 	{/if}
 </div>
+
+<div class="steps">
+		{#if selected !== null}
+	{#if translating}
+		<p style="font-weight: bold;">Adding
+		<math xmlns = "http://www.w3.org/1998/Math/MathML">
+			<mrow>
+		<mn><msub><mn>z</mn>{selected}</msub></mn> <mo>+</mo><mn>{#if snap !== null}<msub><mn>z</mn>{snap}</msub>{:else}...{/if}</mn>
+			</mrow>
+		</math></p>
+
+		{#if snap !== null}
+		<math xmlns = "http://www.w3.org/1998/Math/MathML">
+      <mtable>
+         <mtr>
+         	<mtd>
+					<mn><msub><mn>z</mn>{selected}</msub></mn> <mo>+</mo><mn><msub><mn>z</mn>{snap}</msub></mn>
+         	</mtd>
+         	<mtd><mo>=</mo>
+         	</mtd>
+         	<mtd>
+					<mn>Re</mn><mo>(</mo><msub><mn>z</mn>{selected}</msub><mo>)</mo> <mo>+</mo> <mn mathvariant='normal'>j</mn><mo>&sdot;</mo><mn>Im</mn><mo>(</mo><msub><mn>z</mn>{selected}</msub><mo>)</mo> <mo>+</mo>  
+					<mn>Re</mn><mo>(</mo><msub><mn>z</mn>{snap}</msub><mo>)</mo> <mo>+</mo> <mn mathvariant='normal'>j</mn><mo>&sdot;</mo><mn>Im</mn><mo>(</mo><msub><mn>z</mn>{snap}</msub><mo>)</mo>
+         	</mtd>
+         </mtr>
+
+         <mtr>
+         	<mtd>
+         	</mtd>
+         	<mtd><mo>=</mo>
+         	</mtd>
+         	<mtd>
+					<mo>(</mo><mn>Re</mn><mo>(</mo><msub><mn>z</mn>{selected}</msub><mo>)</mo> <mo>+</mo> <mn>Re</mn><mo>(</mo><msub><mn>z</mn>{snap}</msub><mo>)</mo><mo>)</mo><mo>+</mo>  
+					<mn mathvariant='normal'>j</mn><mo>&sdot;</mo><mo>(</mo><mn>Im</mn><mo>(</mo><msub><mn>z</mn>{selected}</msub><mo>)</mo> <mo>+</mo><mn>Im</mn><mo>(</mo><msub><mn>z</mn>{snap}</msub><mo>)</mo><mo>)</mo>
+         	</mtd>
+         </mtr>
+
+      </mtable>
+		</math>
+		{/if}
+	{:else if rotating}
+		<p style="font-weight: bold;">Multiplying
+		<math xmlns = "http://www.w3.org/1998/Math/MathML">
+			<mrow>
+		<mn><msub><mn>z</mn>{selected}</msub></mn> <mo>&sdot;</mo><mn>{#if snap !== null}<msub><mn>z</mn>{snap}</msub>{:else}...{/if}</mn>
+			</mrow>
+		</math></p>
+
+		{#if snap !== null}
+		<math xmlns = "http://www.w3.org/1998/Math/MathML">
+      <mtable>
+         <mtr>
+         	<mtd>
+					<mn><msub><mn>z</mn>{selected}</msub></mn> <mo>&sdot;</mo><mn><msub><mn>z</mn>{snap}</msub></mn>
+         	</mtd>
+         	<mtd><mo>=</mo>
+         	</mtd>
+         	<mtd>
+					<mrow><mn><mo>|</mo><msub><mn>z</mn>{selected}</msub><mo>|</mo></mn><msup><mn>e</mn><mrow><mo></mo><mn mathvariant='normal'>j</mn><mo>&InvisibleTimes;</mo><mo>(</mo><mn><mo>∠</mo><msub><mn>z</mn>{selected}</msub></mn><mo>)</mo></mrow></msup>
+					<mo>&sdot;</mo>
+					<mn><mo>|</mo><msub><mn>z</mn>{snap}</msub><mo>|</mo></mn><msup><mn>e</mn><mrow><mo></mo><mn mathvariant='normal'>j</mn><mo>&InvisibleTimes;</mo><mn><mo>(</mo><mo>∠</mo><msub><mn>z</mn>{snap}</msub></mn><mo>)</mo></mrow></msup></mrow>
+				</mtd>
+         </mtr>
+
+         <mtr>
+         	<mtd>
+         	</mtd>
+         	<mtd><mo>=</mo>
+         	</mtd>
+         	<mtd>
+					<mrow><mn><mo>|</mo><msub><mn>z</mn>{snap}</msub><mo>|</mo></mn><mo>&sdot;</mo><mn><mo>|</mo><msub><mn>z</mn>{selected}</msub><mo>|</mo></mn><mo>&InvisibleTimes;</mo><msup><mn>e</mn><mrow><mo></mo><mn mathvariant='normal'>j</mn><mo>&InvisibleTimes;</mo><mo>(</mo><mn><mo>∠</mo><msub><mn>z</mn>{selected}</msub></mn><mo>+</mo><mn><mo>∠</mo><msub><mn>z</mn>{snap}</msub></mn><mo>)</mo></mrow></msup>
+				</mtd>
+         </mtr>
+
+      </mtable>
+		</math>
+		{/if}
+	{/if}
+	{/if}
+</div>
+
 <SVGCanvas let:minVisible let:maxVisible on:lkdragstart={onDragStart}
 on:lkdragend={onDragEnd}
 on:lkdragmove={onDragMove} on:wheel={onWheel}>
